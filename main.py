@@ -1,19 +1,9 @@
 import requests
 from urllib.parse import urlencode
-import base64
 import webbrowser
 from settings import client_id, secret, playlist
 
-auth_headers = {
-    "cliant_id": client_id,
-    "response_type": "code",
-    "redirect_url": "http://localhost:7777/callback",
-    "scope": "user-library-read"
-}
-
-webbrowser.open("https://accounts.spotify.com/authorize?" + urlencode(auth_headers))
-
-encoded_credentials = base64.b64encode(client_id.encode() + b':' + secret.encode()).decode("utf-8")
+#API auth code
 
 token_headers = {
     "Content-Type": "application/x-www-form-urlencoded"
@@ -34,6 +24,7 @@ request_header = {
     "Content-Type": "application/json"
 }
 
+#this section tests if you have given a full playlist link or just the Spotify ID and can handle either
 if playlist.split("/")[0] == "https:":
     playlist_id = playlist.split("/")
 else:
@@ -41,30 +32,28 @@ else:
 
 url = f"https://api.spotify.com/v1/playlists/{playlist_id[-1]}"
 
+#gets playlist from the API, this only pulls the first 100 songs as I can't work out how to get offset to work for this
 playlist_get = requests.get(url, headers=request_header)
 
 playlist_data = playlist_get.json()["tracks"]
 
+#itirates over the tracks in the playlist to get the name and artist of the song, at the same time converts the milliseconds into the playlist to HMS then increases that veriable in place for the current song
 songs = []
+ms_into_playlist = 0
 
 for i in playlist_data["items"]:
     current_song = i["track"]
-    songs.append((f"{current_song["name"]} - {current_song["artists"][0]["name"]}", current_song["duration_ms"]))
+    songs.append({"Song Name & Artist": f"{current_song["name"]} - {current_song["artists"][0]["name"]}", "Hours in": int(ms_into_playlist / (1000 * 60 * 60) % 24), "Minutes in": int((ms_into_playlist / (1000 * 60)) % 60), "Seconds in": int((ms_into_playlist / 1000) % 60)})
+    ms_into_playlist += current_song["duration_ms"]
 
-time_in = 0
-songs_lazy_new = []
-
-for i in range(len(songs)):
-    songs_lazy_new.append((songs[i][0], int(time_in / (1000 * 60 * 60) % 24), int((time_in / (1000 * 60)) % 60), int((time_in / 1000) % 60)))
-    time_in += songs[i][1]
-
+#writes the list to a txt file
 try:
     output = open("results.txt", "x")
     output.write("Playlist Results\n\n")
 except Exception as e:
     output = open("results.txt", "a")
-    output.write("\n\nNext results\n\n")
+    output.write("\n\n\nNext results\n\n")
 
 output = open("results.txt", "a")
-for i in range(len(songs_lazy_new)):
-    output.write(f"\n{songs_lazy_new[i][0]} is {songs_lazy_new[i][1]}H {songs_lazy_new[i][2]}M {songs_lazy_new[i][3]}S into your playlist")
+for i in range(len(songs)):
+    output.write(f"\n{songs[i]["Song Name & Artist"]} is {songs[i]["Hours in"]}H {songs[i]["Minutes in"]}M {songs[i]["Seconds in"]}S into your playlist")
